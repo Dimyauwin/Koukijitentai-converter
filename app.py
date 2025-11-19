@@ -4,30 +4,28 @@ import pandas as pd
 # --- 1. ページ設定 ---
 st.set_page_config(page_title="康煕字典体コンバーター", page_icon="u5b57")
 
-# --- 2. デザインの変更（CSSハック） ---
-# ここで「Zenオールド明朝」というWebフォントを読み込んでいます
+# --- 2. デザイン設定 ---
 st.markdown("""
     <style>
-    /* Google Fontsからフォントを読み込む */
     @import url('https://fonts.googleapis.com/css2?family=Zen+Old+Mincho&display=swap');
-
-    /* アプリ全体のフォントを変更 */
     html, body, [class*="css"] {
         font-family: 'Zen Old Mincho', serif;
     }
-    
-    /* 入力欄と出力欄の文字を少し大きくする */
     .stTextArea textarea, .stCode {
         font-size: 1.2rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- タイトル ---
-st.title("康煕字典体コンバーター")
-st.write("現代の文章を、古風な康煕字典体（旧字体）へ変換します。")
+# --- 3. サイドバー設定 ---
+st.sidebar.header("設定")
+use_ivs = st.sidebar.checkbox("IVS（異体字セレクタ）を使う", value=True, help="Word等で厳密な字形を出したい場合はオン。Twitter等ではオフ推奨。")
 
-# --- 3. データの読み込み ---
+# --- ★ここが新機能：注意すべき文字のリスト ---
+# これらは文脈によって旧字が変わるため、あえて変換せずに警告を出します
+attention_chars = ["弁", "余", "予"]
+
+# --- 4. データ読み込み ---
 @st.cache_data
 def load_kanji_data():
     try:
@@ -36,40 +34,82 @@ def load_kanji_data():
     except FileNotFoundError:
         return {}
 
-kanji_map = load_kanji_data()
+raw_map = load_kanji_data()
 
-# --- 4. 画面レイアウト ---
+# --- 辞書の構築（モード切替） ---
+kanji_map = {}
+if raw_map:
+    for k, v in raw_map.items():
+        # 1. まず「注意すべき文字」は辞書から除外する（プログラム側で処理するため）
+        if k in attention_chars:
+            continue
+            
+        # 2. IVSモードの判定
+        if len(v) == 1: # 互換漢字なら常に使う
+            kanji_map[k] = v
+        elif len(v) > 1: # IVS付きならチェックボックス次第
+            if use_ivs:
+                kanji_map[k] = v
+
+# --- 5. メイン画面 ---
+st.title("康煕字典体コンバーター")
+
+# モード案内
+if use_ivs:
+    st.info("現在のモード：**フル変換（Word向け）**")
+else:
+    st.success("現在のモード：**互換漢字のみ（Twitter/Web向け）**")
+
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("現代文（入力）")
+    st.subheader("入力")
     input_text = st.text_area(
-        "ここに文章を入力", 
+        "変換したい文章", 
         height=250, 
-        value="旧帝国大学で、円満な対話を行い、気迫を持って実践する。",
-        label_visibility="collapsed" # ラベルを隠してスッキリさせる
+        value="安全弁を確認し、余力を残して、予定を組む。", # テスト用例文
+        label_visibility="collapsed"
     )
 
-# --- 変換処理 ---
+# --- 6. 変換処理（ロジック変更） ---
 output_text = ""
-if kanji_map:
+has_attention = False # 注意文字が含まれているかチェック用
+
+if raw_map:
     for char in input_text:
-        output_text += kanji_map.get(char, char)
+        # ★ A. 注意すべき文字が来た場合
+        if char in attention_chars:
+            output_text += f"【{char}】" # 記号で囲んでそのまま出す
+            has_attention = True
+            
+        # ★ B. 辞書にある場合
+        elif char in kanji_map:
+            output_text += kanji_map[char]
+            
+        # ★ C. それ以外（変換なし）
+        else:
+            output_text += char
 else:
-    st.error("データファイル（kanji_data.csv）が見つかりません。")
+    st.error("データファイルが見つかりません。")
 
 with col2:
-    st.subheader("康煕字典体（結果）")
-    # --- 5. 結果表示の工夫 ---
-    # st.codeを使うと、右上に自動的に「コピーボタン」が表示されます
-    # language=None にすることで、プログラムの色分けを無効化してただの文字として表示します
+    st.subheader("結果")
     st.code(output_text, language=None)
+    st.caption("※右上のアイコンでコピー")
     
-    # 注意書き
-    st.caption("※右上のアイコンをクリックするとコピーできます")
+    # ★ 注意書きを表示
+    if has_attention:
+        st.warning("""
+        **⚠️ 確認が必要な文字があります**
+        
+        以下の文字は文脈によって旧字体が異なるため、あえて変換していません。
+        文脈に合わせて手動で修正してください。
+        
+        * **【弁】** → 花瓣(花びら)、辨明、辯論、弁(冠) など
+        * **【余】** → 餘(あまり)、余(われ)
+        * **【予】** → 豫(あらかじめ)、予(われ)
+        """)
 
 # --- データ情報 ---
-if kanji_map:
-    with st.expander("現在の登録文字数を確認する"):
-        st.write(f"登録数: {len(kanji_map)}文字")
-        st.dataframe(pd.DataFrame(list(kanji_map.items()), columns=["新字体", "旧字体"]))
+with st.expander("現在の登録状況"):
+    st.write(f"変換対象: {len(kanji_map)}文字")
