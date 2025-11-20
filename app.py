@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # --- 1. ページ設定 ---
-st.set_page_config(page_title="康煕字典体コンバーター", page_icon="u5b57")
+st.set_page_config(page_title="正字化コンバーター", page_icon="u5b57")
 
 # --- 2. デザイン設定 ---
 st.markdown("""
@@ -19,7 +19,7 @@ st.markdown("""
 
 # --- 3. サイドバー設定 ---
 st.sidebar.header("設定")
-use_ivs = st.sidebar.checkbox("IVS（異体字セレクタ）を使う", value=True, help="Word等で厳密な字形を出したい場合はオン。Twitter等ではオフ推奨。")
+use_ivs = st.sidebar.checkbox("IVS（異体字セレクタ）を使う", value=True, help="厳密な字形を出したい場合はオン推奨。")
 
 # --- ★ここが新機能：注意すべき文字のリスト ---
 # これらは文脈によって旧字が変わるため、あえて変換せずに警告を出します
@@ -52,13 +52,13 @@ if raw_map:
                 kanji_map[k] = v
 
 # --- 5. メイン画面 ---
-st.title("康煕字典体コンバーター")
+st.title("正字化コンバーター")
 
 # モード案内
 if use_ivs:
-    st.info("現在のモード：**フル変換（Word向け）**")
+    st.info("現在のモード：**フル変換**")
 else:
-    st.success("現在のモード：**互換漢字のみ（Twitter/Web向け）**")
+    st.success("現在のモード：**互換漢字のみ**")
 
 col1, col2 = st.columns(2)
 
